@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "nodemon --experimental-specifier-resolution=node index.js",
-    "start": "node index.js",
+    "start": "npx nodemon index.js",
     "db:migrate": "node db/migrate.js",
     "db:seed": "node db/seed.js"
   },

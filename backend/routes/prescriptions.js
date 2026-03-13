@@ -1,8 +1,10 @@
 // routes/prescriptions.js
 import { Router as RxRouter } from 'express';
+import { authenticate, authorize } from '../middleware/auth.js';
 import {
     issuePrescription, getPrescription, getMyPrescriptions
 } from '../controllers/doctorsController.js';
+
 
 export const prescriptionsRouter = RxRouter();
 prescriptionsRouter.use(authenticate);
