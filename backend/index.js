@@ -1,123 +1,79 @@
-// =============================================================
-// index.js — HEALIX Backend Entry Point
-// Express application bootstrap: middleware, routes, sockets.
-// =============================================================
+// index.js — HEALIX Server Entry Point
 import 'dotenv/config';
-import http from 'http';
 import express from 'express';
-import helmet from 'helmet';
+import http from 'http';
 import cors from 'cors';
+import helmet from 'helmet';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
-
+import { testConnection } from './db/index.js';
 import logger from './utils/logger.js';
-import { testConnection }         from './db/index.js';
-import { initSocketServer }       from './sockets/index.js';
+import { apiLimiter } from './middleware/rateLimiter.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
-import { apiLimiter }             from './middleware/rateLimiter.js';
+import authRoutes from './routes/auth.js';
+import appointmentRoutes from './routes/appointments.js';
+import doctorRoutes from './routes/doctors.js';
+import { patientsRouter, prescriptionsRouter, adminRouter, notificationsRouter } from './routes/index.js';
+import { initSocketServer } from './sockets/index.js';
 
-// ── Route modules ──────────────────────────────────────────────
-import authRouter                 from './routes/auth.js';
-import appointmentsRouter         from './routes/appointments.js';
-import doctorsRouter              from './routes/doctors.js';
-import { patientsRouter }         from './routes/patients.js';
-import { prescriptionsRouter }    from './routes/prescriptions.js';
-import { adminRouter }            from './routes/admin.js';
-import { notificationsRouter }    from './routes/notification.js';
-
-// ── Express app ────────────────────────────────────────────────
 const app = express();
+const server = http.createServer(app);
 
-// ── Security & utility middleware ──────────────────────────────
-app.use(helmet());
-
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({
     origin: (process.env.ALLOWED_ORIGINS || 'http://localhost:5173').split(','),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-
 app.use(compression());
 app.use(cookieParser());
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev', {
+    stream: { write: (msg) => logger.http(msg.trim()) },
+}));
+app.use('/api/', apiLimiter);
 
-// ── HTTP request logging ───────────────────────────────────────
-if (process.env.NODE_ENV !== 'test') {
-    app.use(morgan('dev'));
-}
-
-// ── Rate limiting ──────────────────────────────────────────────
-app.use('/api', apiLimiter);
-
-// ── Health check ───────────────────────────────────────────────
-app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/health', async (req, res) => {
+    const dbOk = await testConnection();
+    res.status(dbOk ? 200 : 503).json({
+        status: dbOk ? 'ok' : 'degraded', service: 'HEALIX API',
+        timestamp: new Date().toISOString(), uptime: process.uptime(),
+    });
 });
 
-// ── API routes ─────────────────────────────────────────────────
 const API = '/api/v1';
-app.use(`${API}/auth`,           authRouter);
-app.use(`${API}/appointments`,   appointmentsRouter);
-app.use(`${API}/doctors`,        doctorsRouter);
-app.use(`${API}/patients`,       patientsRouter);
-app.use(`${API}/prescriptions`,  prescriptionsRouter);
-app.use(`${API}/admin`,          adminRouter);
-app.use(`${API}/notifications`,  notificationsRouter);
+app.use(`${API}/auth`, authRoutes);
+app.use(`${API}/appointments`, appointmentRoutes);
+app.use(`${API}/doctors`, doctorRoutes);
+app.use(`${API}/patients`, patientsRouter);
+app.use(`${API}/prescriptions`, prescriptionsRouter);
+app.use(`${API}/admin`, adminRouter);
+app.use(`${API}/notifications`, notificationsRouter);
 
-// ── 404 & error handlers (must be last) ───────────────────────
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-// ── HTTP + Socket.io server ────────────────────────────────────
-const PORT   = parseInt(process.env.PORT  || '5000');
-const HOST   = process.env.HOST           || '0.0.0.0';
-
-const httpServer = http.createServer(app);
-const io = initSocketServer(httpServer);
-
-// Make io accessible inside controllers via req.app.get('io')
+// Init Socket.io and attach io to app for use in controllers
+const io = initSocketServer(server);
 app.set('io', io);
 
-// ── Start ──────────────────────────────────────────────────────
+const PORT = parseInt(process.env.PORT || '5000');
+
 async function start() {
-    // Verify DB connection before accepting traffic
     const dbOk = await testConnection();
-    if (!dbOk) {
-        logger.error('❌ Could not connect to the database. Exiting.');
-        process.exit(1);
-    }
-
-    httpServer.listen(PORT, HOST, () => {
-        logger.info(`🚀 HEALIX API running at http://${HOST}:${PORT}`);
-        logger.info(`   Environment : ${process.env.NODE_ENV || 'development'}`);
-        logger.info(`   API prefix  : ${API}`);
+    if (!dbOk) { logger.error('Cannot connect to database. Exiting.'); process.exit(1); }
+    server.listen(PORT, () => {
+        logger.info(`HEALIX API running on http://localhost:${PORT} [${process.env.NODE_ENV || 'development'}]`);
+        logger.info(`WebSocket server ready on ws://localhost:${PORT}`);
     });
 }
 
-// ── Graceful shutdown ──────────────────────────────────────────
-function shutdown(signal) {
-    logger.info(`${signal} received — shutting down gracefully…`);
-    httpServer.close(() => {
-        logger.info('HTTP server closed.');
-        process.exit(0);
-    });
-    // Force exit after 10 s if connections are hanging
-    setTimeout(() => process.exit(1), 10_000).unref();
-}
-
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT',  () => shutdown('SIGINT'));
-
-process.on('unhandledRejection', (reason) => {
-    logger.error('Unhandled rejection:', reason);
-});
-
-process.on('uncaughtException', (err) => {
-    logger.error('Uncaught exception:', err);
-    process.exit(1);
-});
+process.on('SIGTERM', () => { server.close(() => process.exit(0)); });
+process.on('SIGINT', () => { server.close(() => process.exit(0)); });
+process.on('unhandledRejection', (err) => { logger.error('Unhandled rejection:', err); process.exit(1); });
 
 start();
+export { app, server, io };
