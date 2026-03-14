@@ -4,7 +4,7 @@ import { authenticate, authorize } from '../middleware/auth.js';
 import {
     adminApproveDoctor, adminManageUser, adminGetReport,
     adminGetDashboard, adminListUsers, adminGetActivityLogs,
-    adminGetPendingDoctors,
+    adminGetPendingDoctors, adminListDoctors,
 } from '../controllers/doctorsController.js';
 
 
@@ -15,6 +15,7 @@ adminRouter.use(authorize('admin'));
 adminRouter.get('/dashboard', adminGetDashboard);
 adminRouter.get('/report', adminGetReport);
 adminRouter.get('/users', adminListUsers);
+adminRouter.get('/doctors', adminListDoctors);
 adminRouter.get('/doctors/pending', adminGetPendingDoctors);
 adminRouter.get('/activity-logs', adminGetActivityLogs);
 adminRouter.put('/doctors/:doctorId/status', adminApproveDoctor);

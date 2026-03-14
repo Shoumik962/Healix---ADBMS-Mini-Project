@@ -11,6 +11,7 @@ const router = Router();
 
 router.get('/specializations', getSpecializations);
 router.get('/search', searchDoctors);
+router.get('/me/schedule', authenticate, authorize('doctor'), getDoctorSchedule);  // own schedule
 router.get('/:id', getDoctorProfile);
 router.get('/:id/schedule', getDoctorSchedule);
 router.get('/:id/available-slots', getAvailableSlots);

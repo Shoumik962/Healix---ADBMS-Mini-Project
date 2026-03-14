@@ -348,7 +348,7 @@ CREATE OR REPLACE PROCEDURE complete_appointment(
   p_appointment_id UUID,
   p_calling_user   UUID,
   p_calling_role   user_role,
-  p_notes          TEXT DEFAULT NULL,
+  p_notes          TEXT,
   OUT p_result     JSONB
 )
 LANGUAGE plpgsql
@@ -418,7 +418,7 @@ CREATE OR REPLACE PROCEDURE issue_prescription(
   p_diagnosis       TEXT,
   p_notes           TEXT,
   p_medications     JSONB,   -- array of medication objects
-  p_expires_at      TIMESTAMPTZ DEFAULT NULL,
+  p_expires_at      TIMESTAMPTZ,
   OUT p_result      JSONB
 )
 LANGUAGE plpgsql

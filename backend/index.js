@@ -14,7 +14,10 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import authRoutes from './routes/auth.js';
 import appointmentRoutes from './routes/appointments.js';
 import doctorRoutes from './routes/doctors.js';
-import { patientsRouter, prescriptionsRouter, adminRouter, notificationsRouter } from './routes/index.js';
+import { patientsRouter } from './routes/patients.js';
+import { prescriptionsRouter } from './routes/prescriptions.js';
+import { adminRouter } from './routes/admin.js';
+import { notificationsRouter } from './routes/notification.js';
 import { initSocketServer } from './sockets/index.js';
 
 const app = express();

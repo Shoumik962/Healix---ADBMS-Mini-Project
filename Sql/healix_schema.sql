@@ -304,7 +304,7 @@ CREATE INDEX idx_appt_patient_status  ON appointments(patient_id, status);
 CREATE INDEX idx_appt_meeting_room    ON appointments(meeting_room_id) WHERE meeting_room_id IS NOT NULL;
 -- Partial index: upcoming confirmed appointments only
 CREATE INDEX idx_appt_upcoming ON appointments(doctor_id, appointment_dt)
-  WHERE status IN ('pending', 'confirmed') AND appointment_dt > NOW();
+  WHERE status IN ('pending', 'confirmed');
 
 -- =============================================================
 -- TABLE: prescriptions
@@ -585,6 +585,6 @@ COMMENT ON TABLE activity_logs              IS 'Audit log for all major system a
 COMMENT ON TABLE refresh_tokens             IS 'JWT refresh token store for session management';
 COMMENT ON TABLE notifications              IS 'In-app notification queue per user';
 
-COMMENT ON COLUMN appointments.vitals       IS 'JSONB: flexible vital signs storage';
+COMMENT ON COLUMN medical_records.vitals       IS 'JSONB: flexible vital signs storage';
 COMMENT ON COLUMN appointments.meeting_room_id IS 'socket.io room identifier for video consultation';
 COMMENT ON COLUMN doctors.status           IS 'Approval workflow state managed by admin';

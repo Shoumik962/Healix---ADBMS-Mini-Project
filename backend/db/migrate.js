@@ -26,9 +26,9 @@ const pool = new pg.Pool({
 
 // Migration files in order
 const MIGRATION_FILES = [
-  { name: '001_schema', file: path.join(__dirname, '../../../healix_schema.sql') },
-  { name: '002_triggers', file: path.join(__dirname, '../../../healix_triggers.sql') },
-  { name: '003_procedures', file: path.join(__dirname, '../../../healix_procedures.sql') },
+  { name: '001_schema', file: path.join(__dirname, '../../Sql/healix_schema.sql') },
+  { name: '002_triggers', file: path.join(__dirname, '../../Sql/healix_triggers.sql') },
+  { name: '003_procedures', file: path.join(__dirname, '../../Sql/healix_procedures.sql') },
 ];
 
 async function ensureMigrationsTable(client) {

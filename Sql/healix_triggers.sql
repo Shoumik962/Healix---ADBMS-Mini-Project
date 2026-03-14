@@ -206,7 +206,7 @@ BEGIN
 
   IF v_blocked_count > 0 THEN
     RAISE EXCEPTION
-      'DOCTOR_BLOCKED: Doctor has marked this time as unavailable.',
+      'DOCTOR_BLOCKED: Doctor has marked this time as unavailable.'
       USING ERRCODE = 'P0004';
   END IF;
 
@@ -672,6 +672,10 @@ BEGIN
     total_reviews = v_total_reviews
   WHERE id = COALESCE(NEW.doctor_id, OLD.doctor_id);
 
+  -- On DELETE triggers NEW is NULL; return OLD to satisfy the trigger contract
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
   RETURN NEW;
 END;
 $$;

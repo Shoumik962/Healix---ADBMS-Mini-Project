@@ -26,7 +26,8 @@ export async function searchDoctors(req, res, next) {
     );
 
     const totalCount = rows[0]?.total_count || 0;
-    const data = rows.map(({ total_count, ...rest }) => rest);
+    // rename doctor_id → id for consistent frontend usage
+    const data = rows.map(({ total_count, doctor_id, ...rest }) => ({ id: doctor_id, ...rest }));
 
     return ApiResponse.paginated(res, data, {
       page: parseInt(page), pageSize: parseInt(page_size),
@@ -49,9 +50,18 @@ export async function getDoctorProfile(req, res, next) {
 export async function getDoctorSchedule(req, res, next) {
   try {
     const { date } = req.query;
+    let doctorId = req.params.id;
+
+    // Called via /doctors/me/schedule — resolve the authenticated doctor's UUID
+    if (!doctorId && req.user) {
+      const { rows } = await query('SELECT id FROM doctors WHERE user_id=$1', [req.user.id]);
+      if (!rows.length) return ApiResponse.notFound(res, 'Doctor profile not found');
+      doctorId = rows[0].id;
+    }
+
     const { rows } = await query(
       `SELECT * FROM get_doctor_schedule($1, $2::date)`,
-      [req.params.id, date || new Date().toISOString().split('T')[0]]
+      [doctorId, date || new Date().toISOString().split('T')[0]]
     );
     return ApiResponse.success(res, rows);
   } catch (err) { next(err); }
@@ -278,7 +288,7 @@ export async function adminListUsers(req, res, next) {
        LEFT JOIN patients p ON p.user_id = u.id
        LEFT JOIN doctors  d ON d.user_id = u.id
        LEFT JOIN admins   a ON a.user_id = u.id
-       WHERE ($1::text   IS NULL OR r.name = $1)
+       WHERE ($1::text   IS NULL OR r.name::text = $1)
          AND ($2::boolean IS NULL OR u.is_active = $2)
          AND ($3::text IS NULL
               OR u.email ILIKE '%'||$3||'%'
@@ -287,6 +297,40 @@ export async function adminListUsers(req, res, next) {
        LIMIT $4 OFFSET $5`,
       [role || null, is_active !== undefined ? is_active === 'true' : null,
        q || null, parseInt(page_size), offset]
+    );
+
+    const totalCount = rows[0]?.total_count || 0;
+    const data = rows.map(({ total_count, ...rest }) => rest);
+    return ApiResponse.paginated(res, data, {
+      page: parseInt(page), pageSize: parseInt(page_size),
+      totalCount: parseInt(totalCount),
+    });
+  } catch (err) { next(err); }
+}
+
+export async function adminListDoctors(req, res, next) {
+  try {
+    const { status, q, page = 1, page_size = 20 } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(page_size);
+
+    const { rows } = await query(
+      `SELECT
+         d.id, d.first_name, d.last_name, d.license_number,
+         d.status, d.years_of_experience, d.consultation_fee,
+         d.hospital_name, d.city, d.rating, d.total_reviews,
+         u.email, u.is_active, u.created_at,
+         s.name AS specialization_name,
+         COUNT(*) OVER() AS total_count
+       FROM doctors d
+       JOIN users u            ON d.user_id           = u.id
+       JOIN specializations s  ON d.specialization_id = s.id
+       WHERE ($1::text IS NULL OR d.status::text = $1)
+         AND ($2::text IS NULL
+              OR u.email ILIKE '%'||$2||'%'
+              OR (d.first_name || ' ' || d.last_name) ILIKE '%'||$2||'%')
+       ORDER BY d.created_at DESC
+       LIMIT $3 OFFSET $4`,
+      [status || null, q || null, parseInt(page_size), offset]
     );
 
     const totalCount = rows[0]?.total_count || 0;
